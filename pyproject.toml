@@ -1,0 +1,18 @@
+[project]
+name = "infra-dashboard"
+version = "0.1.0"
+description = "Web Server to list all service hosted by IFT infra team"
+authors = [
+    { email = "alexis@status.in"}
+]
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "Flask==2.3.2",
+  "requests==2.31.0",
+  "python-dotenv==1.0.0"
+]
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
