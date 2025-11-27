@@ -157,11 +157,10 @@
                     <div class="col-md-6">
                         <div class="card website-card">
                             <div class="card-body">
-                                <h5 class="card-title">{{ site.name }}</h5>
+                                <h5 class="card-title">{{ site.url }}</h5>
                                 <h6 class="card-subtitle mb-2 text-muted">
-                                    {{ site.environment }} | {{ site.stage }}
+                                    env: {{ site.environment }} | stage: {{ site.stage }}
                                 </h6>
-                                <p class="card-text">{{ site.description }}</p>
                                 <a href="{{ site.url }}" target="_blank" class="card-link">Visit Website</a>
                                 <div class="mt-2">
                                     {% for tag in site.tags %}
@@ -322,11 +321,10 @@
                         <div class="col-md-6">
                             <div class="card website-card">
                                 <div class="card-body">
-                                    <h5 class="card-title">${site.name}</h5>
+                                    <h5 class="card-title">${site.url}</h5>
                                     <h6 class="card-subtitle mb-2 text-muted">
-                                        ${site.environment} | ${site.stage}
+                                        env: ${site.environment} | stage: ${site.stage}
                                     </h6>
-                                    <p class="card-text">${site.description}</p>
                                     <a href="${site.url}" target="_blank" class="card-link">Visit Website</a>
                                     <div class="mt-2">
                                         ${tagsHtml}
