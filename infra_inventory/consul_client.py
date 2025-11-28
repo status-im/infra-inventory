@@ -66,12 +66,12 @@ class ConsulClient:
             return websites
         for dc in dcs:
             services = self.get_services(dc)
-            self.logger.info("%s services founds in data center %s", len(services), dc)
+            self.logger.debug("%s services founds in data center %s", len(services), dc)
             if not services:
                 return websites
 
             for service_name in services:
-                self.logger.info("Services : %s", service_name)
+                self.logger.debug("Services : %s", service_name)
                 if service_name == 'consul':  # Skip Consul itself
                     continue
 
@@ -80,7 +80,7 @@ class ConsulClient:
                     continue
 
                 for instance in instances:
-                    self.logger.info(instances)
+                    self.logger.debug(instances)
                     name = instance.get('Service', service_name)
                     if name == 'caddy-git':
                         name = instance.get('ServiceMeta').get('proxy_fqdn')

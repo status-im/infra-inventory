@@ -1,4 +1,6 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, redirect, redirect, url_for, abort, session
+from authlib.integrations.flask_client import OAuth, token_update
+from functools import wraps
 import json
 import os
 import threading
@@ -8,12 +10,46 @@ from collections import defaultdict
 from .consul_client import ConsulClient
 from .config import Config
 
-app = Flask(__name__)
 config = Config()
+app = Flask(__name__)
+app.config.update({
+    'SECRET_KEY': config.SECRET_KEY,
+})
+oauth= OAuth(app=app)
+oauth.register(
+    name="keycloak",
+    client_id=config.OAUTH_CLIENT_ID,
+    client_secret=config.OAUTH_CLIENT_SECRET,
+    server_metadata_url=f'{config.OAUTH_ISSUER}/.well-known/openid-configuration',
+    userinfo_endpoint=f'{config.OAUTH_ISSUER}/protocol/openid-connect/userinfo',
+    client_kwargs={
+        'scope': config.OAUTH_SCOPE
+    }
+)
 
 # Set up logging
 logging.basicConfig(level=config.LOG_LEVEL)
 logger = logging.getLogger(__name__)
+
+# Keycloak Auth verificaiton
+def requires_keycloak_session(view):
+    @wraps(view)
+    def decorated(*args, **kwargs):
+        app.logger.debug('session %s', session )
+        user=session.get('user')
+        if user is None:
+            return redirect('/')
+        return view(*args, **kwargs)
+    return decorated
+
+# Render Helper
+def render_page():
+    return render_template(
+        'upload.html',
+        wallet_files=get_list_file('wallets'),
+        bank_files=get_list_file('bank'),
+        tokens_files=get_list_file('tokens')
+    )
 
 # Global variable to store websites data
 websites_data = []
@@ -86,19 +122,29 @@ def get_environment_filters(websites):
 
     return env_stages, env_tags
 
+@app.route('/health')
+def health():
+    return '{"status":"healthy"}'
+
 @app.route('/')
 def index():
+    return render_template('index.html')
+
+@app.route('/inventory')
+@requires_keycloak_session
+def inventory():
     websites = load_websites()
     environments = sorted(list(set([site['environment'] for site in websites])))
     env_stages, env_tags = get_environment_filters(websites)
-
-    return render_template('index.html',
+    return render_template('inventory.html',
                          environments=environments,
                          stages=env_stages,
                          tags=env_tags,
                          websites=websites)
 
+
 @app.route('/filter', methods=['GET'])
+@requires_keycloak_session
 def filter_websites():
     websites = load_websites()
     search_term = request.args.get('search', '').lower()
@@ -129,6 +175,7 @@ def filter_websites():
     return jsonify(filtered)
 
 @app.route('/get_stages', methods=['GET'])
+@requires_keycloak_session
 def get_stages():
     """Get stages for a specific environment"""
     environment = request.args.get('environment', 'all')
@@ -137,12 +184,48 @@ def get_stages():
     return jsonify(env_stages.get(environment, []))
 
 @app.route('/get_tags', methods=['GET'])
+@requires_keycloak_session
 def get_tags():
     """Get tags for a specific environment"""
     environment = request.args.get('environment', 'all')
     websites = load_websites()
     _, env_tags = get_environment_filters(websites)
     return jsonify(env_tags.get(environment, []))
+
+# Authentications routes
+@app.route('/login')
+def login():
+    redirect_uri = url_for('auth', _external=True)
+    return oauth.keycloak.authorize_redirect(redirect_uri)
+
+
+@app.route('/auth')
+def auth():
+    tokenResponse = oauth.keycloak.authorize_access_token()
+    # extracting roles
+    if tokenResponse['userinfo']:
+        session['user']=tokenResponse['userinfo']
+        return redirect('/inventory')
+    else:
+        abort(403)
+    return redirect('/')
+
+@app.route('/logout')
+def logout():
+    tokenResponse = session.get('tokenResponse')
+
+    if tokenResponse is not None:
+        # propagate logout to Keycloak
+        refreshToken = tokenResponse['refresh_token']
+        endSessionEndpoint = f'{issuer}/protocol/openid-connect/logout'
+        requests.post(endSessionEndpoint, data={
+            "client_id": clientId,
+            "client_secret": clientSecret,
+            "refresh_token": refreshToken,
+        })
+    session.pop('user', None)
+    session.pop('tokenResponse', None)
+    return redirect('/')
 
 def run_server():
     logger.info("Starting infra-inventory")
